@@ -1,2 +1,2 @@
-# sushutil
-utilities for Sushmit
+# Oishani
+utilities for Sushmit Roy
