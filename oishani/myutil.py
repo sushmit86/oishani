@@ -1,6 +1,15 @@
 import torch
 import numpy as np
 
-class test():
-    def __init__(self) -> None:
-        pass
+class Accumalator:
+    """
+    Accumalating sums over n variables
+    """
+    def __init__(self,n):
+        self.data = [0.0] * n
+    def add(self, *args ):
+        self.data = [a+b for a,b in  zip(self.data,args)]
+    def reset(self):
+        self = [0.0] * len(self.data)
+    def __getitem__(self,idx):
+        return self[idx]
