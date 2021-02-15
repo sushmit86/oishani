@@ -1,11 +1,6 @@
-import torch
-import numpy as np
-import pandas as pd
-
-
 def try_gpu(i=0):
     if torch.cuda.device_count() >= i+1:
-        return torch.cuda.device(f'cuda:{i}')
+        return torch.device(f'cuda:{i}')
     else:
         return torch.device('cpu')
 
@@ -34,21 +29,23 @@ class classification_model():
         self.net = net
         self.device = device
     
-    def fit(self, loss_fn,num_epochs,lr,train_iter):
+    def fit(self, optimizer_fn,loss_fn,num_epochs,lr,train_iter,verbose = True):
         self.net.apply(self.init_weights)
         print('training on', self.device)
         self.net.to(self.device)
         num_batches = len(train_iter)
-        optimizer = torch.optim.SGD(self.net.parameters(), lr=lr)
+        optimizer = optimizer_fn(self.net.parameters(), lr=lr)
+        time_array = np.zeros(num_epochs)
+        acc_array = np.zeros(num_epochs)
+        loss_array = np.zeros(num_epochs)
         for epoch in range(num_epochs):
-            print(epoch)
+            start_time = time.time()
             metric = Accumalator(3)
             self.net.train()
             for i,_train in enumerate(train_iter):
-                X,y = _train[:,1:],_train[:,0]
+                X,y = _train[:,1:],_train[:,0].type(torch.long)
                 optimizer.zero_grad()
                 X, y = X.to(self.device), y.to(self.device)
-                y = torch.tensor(y, dtype=torch.long, device=self.device)
                 y_hat = self.net(X)
                 l = loss_fn(y_hat, y)
                 l.backward()
@@ -57,12 +54,16 @@ class classification_model():
                     metric.add(l * X.shape[0], self.accuracy(y_hat, y), X.shape[0])
             train_l = metric[0]/metric[2]
             train_acc = metric[1] / metric[2]
-            if epoch%5 == 0 or epoch == (num_epochs - 1):
+            if (epoch%10 == 0 or epoch == (num_epochs - 1)) and verbose:
                 print('epoch number', epoch)
                 print(f'Training loss {train_l}')
                 print(f'Training accuracy {train_acc}')
-                print(metric[1])
-
+            end_time = time.time()
+            time_array[epoch] = end_time - start_time
+            acc_array[epoch] = train_acc
+            loss_array[epoch] = train_l
+        return (time_array,acc_array,loss_array)
+               
     def init_weights(self,m):
         if type(m) == nn.Linear or type(m) == nn.Conv2d:
             nn.init.xavier_uniform_(m.weight)
@@ -80,5 +81,5 @@ class classification_model():
                 pred = np.zeros(_data.shape[0])
                 pred = torch.argmax(self.net(_data),axis = 1).numpy()
             else:
-                pred[:] = np.concatenate((torch.argmax(self.net(_data),axis = 1).numpy()),pred)
+                pred = np.concatenate((pred,torch.argmax(self.net(_data),axis = 1).numpy()))
         return pred
